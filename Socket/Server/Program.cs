@@ -4,44 +4,34 @@ using System.Text;
 
 namespace Server {
     internal class Program {
-        static void Main(string[] args) {
+        static async Task Main(string[] args) {
             using (Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)) {
-                IPEndPoint endPoint = new IPEndPoint(IPAddress.Parse("172.31.3.19"), 20000);
-                // 서버 소켓에 ip주소, port번호 할당
-                serverSocket.Bind(endPoint);
 
-                // 클라이언트들의 연결 요청을 대기하는 상태로 설정
-                // 백로그큐 = 클라이언트들의 연결 요청 대기실
-                // 20은 백로그큐의 사이즈
+                IPEndPoint endPoint = new IPEndPoint(IPAddress.Parse("172.31.3.19"), 20000);
+                serverSocket.Bind(endPoint);
                 serverSocket.Listen(1000);
 
                 while (true) {
-                    Socket clientSocket = serverSocket.Accept();
+                    Socket clientSocket = await serverSocket.AcceptAsync();
                     Console.WriteLine("연결됨 : " + clientSocket.RemoteEndPoint);
+                    ThreadPool.QueueUserWorkItem(ReadAsync, clientSocket);
 
-                    Thread t1 = new Thread(() => {
-                        while (true) {
-                            byte[] buffer = new byte[256];
-                            int totalByte = clientSocket.Receive(buffer);
-
-                            // 반환 값이 1 미만 (받은 내용 없을 경우 연결종료)
-                            if (totalByte < 1) {
-                                Console.WriteLine("클라이언트 연결종료");
-                                clientSocket.Dispose();
-                                break;
-                            }
-
-                            // 역직렬화
-                            string str = Encoding.UTF8.GetString(buffer);
-                            Console.WriteLine(str);
-
-                            clientSocket.Send(buffer);
-                        }
-                    });
-                    t1.Start();
                 }
             }
+        }
 
+        private static async void ReadAsync(object? sender) {
+            Socket clientSocket = (Socket)sender;
+            while (true) {
+                byte[] buffer = new byte[256];
+                int n1 = await clientSocket.ReceiveAsync(buffer, SocketFlags.None);
+                if (n1 < 1) {
+                    Console.WriteLine("client disconnect");
+                    clientSocket.Dispose();
+                    return;
+                }
+                Console.WriteLine(Encoding.UTF8.GetString(buffer));
+            }
         }
     }
 }
