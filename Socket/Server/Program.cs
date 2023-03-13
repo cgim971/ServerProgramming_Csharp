@@ -15,25 +15,30 @@ namespace Server {
                 // 20은 백로그큐의 사이즈
                 serverSocket.Listen(1000);
 
-                using (Socket clientSocket = serverSocket.Accept()) {
+                while (true) {
+                    Socket clientSocket = serverSocket.Accept();
                     Console.WriteLine("연결됨 : " + clientSocket.RemoteEndPoint);
 
-                    byte[] buffer = new byte[256];
+                    Thread t1 = new Thread(() => {
+                        while (true) {
+                            byte[] buffer = new byte[256];
+                            int totalByte = clientSocket.Receive(buffer);
 
-                    while (true) {
-                        int totalByte = clientSocket.Receive(buffer);
+                            // 반환 값이 1 미만 (받은 내용 없을 경우 연결종료)
+                            if (totalByte < 1) {
+                                Console.WriteLine("클라이언트 연결종료");
+                                clientSocket.Dispose();
+                                break;
+                            }
 
-                        // 반환 값이 1 미만 (받은 내용 없을 경우 연결종료)
-                        if (totalByte < 1) {
-                            Console.WriteLine("클라이언트 연결종료");
+                            // 역직렬화
+                            string str = Encoding.UTF8.GetString(buffer);
+                            Console.WriteLine(str);
+
+                            clientSocket.Send(buffer);
                         }
-
-                        // 역직렬화
-                        string str = Encoding.UTF8.GetString(buffer);
-                        Console.WriteLine(str);
-
-                        clientSocket.Send(buffer);
-                    }
+                    });
+                    t1.Start();
                 }
             }
 
